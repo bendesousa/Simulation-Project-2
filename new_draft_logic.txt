@@ -1,0 +1,134 @@
+#INITIALISATION
+TNOW = 0
+
+#Workers [Type1, Type2, Type3, Type4, Type5]
+W = [7, 3, 3, 2, 2]
+
+#Machines [Roll&Cut, Special, Workbench]
+M = [1, 2, 2]
+
+#Inventory
+I_aluminium = 50
+I_harddisk  = 70
+
+#System laptop count
+L = 0
+
+#All queues start empty
+#All event times start at Termination + 1
+
+
+#ON ORDER ARRIVAL
+Sample order size: X ~ Binomial(5, 0.6), size = X + 1
+If L + size > 100: reject order, stop
+Else: accept order, L += size
+For each laptop in order:
+    Send to START OF MOTHERBOARD LINE (queue for 2.1)
+    Send to START OF CASE LINE (queue for 3.1)
+
+#####################################
+#MOTHERBOARD LINE
+#Initial phase
+Needs: 1x Type1 worker
+Duration: sample from data
+BLOCKED if queue for 2.2 already has 3 items → wait until it drops below 3
+On complete → send to queue for 2.2
+
+#Power assembly
+Needs: 1x Type1 worker
+Duration: Uniform(2, 6)
+On complete:
+    If queue for 2.3 has fewer than 2 items: send directly to queue for 2.3
+    Else: send to STORAGE (takes 2 min travel time)
+
+#Storage rule
+When queue for 2.3 becomes empty:
+    Move up to 2 items from storage to queue for 2.3 (takes 3 min)
+
+#Main part assembly
+Needs: 1x Type2 worker
+Duration: Triangular(5, 8, 15)
+On complete → MOTHERBOARD DONE, flag laptop, check workbench readiness
+
+#########################################
+#CASE LINE
+#Cutting aluminium plates
+Needs: 1x Roll machine + 1x Cut machine + 1 aluminium block
+If no aluminium available: wait for reorder delivery
+Duration: 8 min (deterministic)
+On complete → sends ONE laptop to queue for 3.2 AND queue for 3.4 (parallel from here)
+
+#Shaping the screen
+Needs: 1x Type3 worker + 1x Special machine
+Duration: Uniform(3, 5)
+On complete → send to queue for 3.3
+
+#Placing the screen
+Needs: 1x Type1 worker
+Duration: Uniform(4, 10)
+On complete → UPPER CASE DONE, flag laptop, check workbench readiness
+
+#Cutting for keyboard/mouse
+Needs: 1x Type3 worker + 1x Special machine (same machine as 3.2)
+Duration: Uniform(5, 8)
+On complete, check rework:
+    1st attempt: rework with prob 0.2 → rejoin back of queue 
+    2nd attempt: rework with prob 0.1 → rejoin back of queue
+    3rd attempt: always passes → send to queue for 3.5
+
+#Placing keyboard and mouse
+Needs: 1x Type1 worker
+Duration: sample from data
+On complete → LOWER CASE DONE, flag laptop, check workbench readiness
+
+#################################################
+#WORKBENCH
+#Readiness check (triggered whenever any of the 3 flags are set):
+If MOTHERBOARD DONE + UPPER CASE DONE + LOWER CASE DONE for same laptop:
+    If a workbench is free + Type1 worker free + Type2 worker free:
+        Start workbench for this laptop
+    Else: laptop waits in workbench queue
+
+#Assembling peripherals (on workbench)
+Needs: 1x Type2 worker + 1 hard disk
+Duration: 3*Beta(3,2) + 1
+Consume 1 hard disk, check reorder
+On complete → free Type2 worker, flag 4.1 done
+
+#Assembling the case (on workbench, parallel to 4.1)
+Needs: 1x Type1 worker (same worker stays for 4.3)
+Duration: sample from data
+On complete → flag 4.2 done
+
+#Place motherboard in case
+Starts when BOTH 4.1 and 4.2 are done
+Same Type1 worker from 4.2
+Duration: Uniform(4, 8)
+On complete → free workbench + free Type1 worker → send to QC queue
+
+#################################################
+#QUALITY ASSURANCE
+Needs: 1x Type4 worker
+Duration: Triangular(8, 14, 16)
+On complete → free Type4 worker
+If all laptops in this order are now QC done → send order to boxing queue
+
+###############################################
+#BOXING
+Needs: 1x Type5 worker
+Duration: Uniform(4, 8)
+On complete → free Type5 worker, order leaves system, L -= order size
+
+############################################
+#INVENTORY REPLENISHMENT
+#Aluminium (s=10, Q=50)
+After every aluminium consumption:
+    If I_aluminium < 10 and no order pending: place order for 50 blocks
+    Delivered after 15 hours
+    On delivery: I_aluminium += 50, resume any blocked 3.1 jobs
+
+#Hard Disks (s=10, Q=70)
+After every hard disk consumption:
+    If I_harddisk < 10 and no order pending: place order for 70 disks
+    Delivered after 15 hours
+    On delivery: I_harddisk += 70
