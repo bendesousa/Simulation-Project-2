@@ -24,14 +24,18 @@ def fit_and_plot(data, dist, bounds=None, title=""):
     print(f"\n--- {title} ---")
     print(result)
 
-    result.plot()
-    plt.title(title)
-    plt.show()
-
     params = result.params._asdict()
 
-    ks = stats.kstest(data, dist.name, args=tuple(params.values()))
+    fig, ax = plt.subplots()
+    ax.hist(data, density=True, bins=20, alpha=0.5, color="#FF7F0E", label="Data")
+    x = np.linspace(data.min(), data.max(), 200)
+    ax.plot(x, dist.pdf(x, *tuple(params.values())), color="#1F77B4", linestyle="-", label=dist.name)
+    ax.set_title(title)
+    ax.legend()
+    fig.savefig(f"{title.replace(' ', '_')}.png", dpi=150, bbox_inches="tight")
+    plt.show()
 
+    ks = stats.kstest(data, dist.name, args=tuple(params.values()))
     print("\n--- Goodness of fit (KS Test) ---")
     print(f"KS Statistic: {ks.statistic}")
     print(f"P-value: {ks.pvalue}")
@@ -87,6 +91,17 @@ def find_best_distribution(data, dists, dataset_name="Dataset", top_n=5):
             print(f"   scale: {scale:.4f}")
 
     print("\n(Lower AIC = better fit)")
+
+    for dist, aic, params in results[:top_n]:
+        fig, ax = plt.subplots()
+        ax.hist(data, density=True, bins=20, alpha=0.5, color="#FF7F0E", label="Data")
+        x = np.linspace(data.min(), data.max(), 200)
+        ax.plot(x, dist.pdf(x, *params), color="#1F77B4", linestyle="-", label=dist.name)
+        ax.set_title(f"{dataset_name}")
+        ax.legend()
+        fig.savefig(f"{dataset_name.replace(' ', '_')}_best_fit.png", dpi=150, bbox_inches="tight")
+        plt.show()
+        break
 
     return results
 
