@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-data = pd.read_excel('baseline_cycle_times_1.xlsx', header=None)
+data = pd.read_excel('baseline_cycle_times_updated.xlsx', header=None)
 avg_cycle = data[0].dropna()
 total_laptops = data[1].dropna()
 
